@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Store, Brain, BarChart3, Users, TrendingUp, Package, DollarSign, RotateCcw, Bell, Database, Network, Layers, Activity, Zap } from 'lucide-react';
+import { Store, Brain, BarChart3, Users, TrendingUp, Package, DollarSign, RotateCcw, Bell, Database, Network, Layers, Activity, Zap, Upload } from 'lucide-react';
 import { EnhancedPromptConsultant } from './components/EnhancedPromptConsultant';
 import { SalesTrendChart } from './components/SalesTrendChart';
 import { CategoryPerformanceChart } from './components/CategoryPerformanceChart';
@@ -17,6 +17,7 @@ import { CompetitiveIntelligence } from './components/CompetitiveIntelligence';
 import { SystemMapping } from './components/SystemMapping';
 import { RealTimeInsightsDashboard } from './components/RealTimeInsightsDashboard';
 import { MarketIntelligenceEngine } from './components/MarketIntelligenceEngine';
+import { DataPipelineTab } from './components/DataPipelineTab';
 import { ConsultantResponse } from './types';
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
   const tabs = [
     { id: 'realtime', label: 'Live Intelligence', icon: Activity, gradient: 'from-green-500 to-emerald-500' },
     { id: 'strategy', label: 'Market Strategy', icon: Zap, gradient: 'from-purple-500 to-pink-500' },
+    { id: 'data-pipeline-new', label: 'Data Pipeline', icon: Upload, gradient: 'from-blue-500 to-cyan-500' },
     { id: 'overview', label: 'Sales Overview', icon: BarChart3, gradient: 'from-blue-500 to-cyan-500' },
     { id: 'products', label: 'Product Analytics', icon: Package, gradient: 'from-purple-500 to-pink-500' },
     { id: 'inventory', label: 'Inventory Health', icon: Package, gradient: 'from-amber-500 to-orange-500' },
@@ -34,7 +36,7 @@ function App() {
     { id: 'ai-insights', label: 'AI Insights', icon: Brain, gradient: 'from-indigo-500 to-purple-500' },
     { id: 'trends', label: 'Trend Analysis', icon: TrendingUp, gradient: 'from-green-500 to-emerald-500' },
     { id: 'demographics', label: 'Demographics', icon: Users, gradient: 'from-pink-500 to-rose-500' },
-    { id: 'data-pipeline', label: 'Data Pipeline', icon: Database, gradient: 'from-slate-500 to-gray-500' },
+    { id: 'data-pipeline', label: 'Data Sources', icon: Database, gradient: 'from-slate-500 to-gray-500' },
     { id: 'competitive', label: 'Competitive Intel', icon: Network, gradient: 'from-red-600 to-pink-600' },
     { id: 'system-map', label: 'System Mapping', icon: Layers, gradient: 'from-purple-600 to-indigo-600' }
   ];
@@ -135,6 +137,12 @@ function App() {
           {activeTab === 'strategy' && (
             <div className="space-y-8">
               <MarketIntelligenceEngine />
+            </div>
+          )}
+
+          {activeTab === 'data-pipeline-new' && (
+            <div className="space-y-8">
+              <DataPipelineTab />
             </div>
           )}
 
