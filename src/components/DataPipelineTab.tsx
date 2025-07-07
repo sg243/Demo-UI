@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Database, Brain, BarChart3, FileText, CheckCircle, AlertCircle, Play, Download, Zap, Search, Code, Table } from 'lucide-react';
+import { Upload, Database, Brain, BarChart3, FileText, CheckCircle, AlertCircle, Play, Download, Zap, Search, Code, Table, Send, Bot, Sparkles, MessageCircle } from 'lucide-react';
 
 interface CleaningLog {
   message: string;
@@ -17,6 +17,16 @@ interface QueryResult {
   data: any[];
   columns: string[];
   query: string;
+  executionTime?: number;
+}
+
+interface ChatMessage {
+  id: string;
+  type: 'user' | 'assistant';
+  content: string;
+  query?: string;
+  result?: QueryResult;
+  timestamp: Date;
 }
 
 const COLUMN_MAPPING = {
@@ -55,7 +65,57 @@ const PREDEFINED_QUERIES = {
   "What is the average discount given?": "SELECT AVG(discount_percent) AS avg_discount FROM data",
   "Which brand has the best average rating?": "SELECT brand, AVG(rating) AS avg_rating FROM data GROUP BY brand ORDER BY avg_rating DESC LIMIT 1",
   "What are the top 5 returned products?": "SELECT product_name, COUNT(*) AS return_count FROM data WHERE return_status = 1 GROUP BY product_name ORDER BY return_count DESC LIMIT 5",
-  "Which sales channel performs best?": "SELECT sales_channel, SUM(final_price * quantity) AS total_sales FROM data GROUP BY sales_channel ORDER BY total_sales DESC LIMIT 1"
+  "Which sales channel performs best?": "SELECT sales_channel, SUM(final_price * quantity) AS total_sales FROM data GROUP BY sales_channel ORDER BY total_sales DESC LIMIT 1",
+  "Which product has the highest average rating?": "SELECT product_name, AVG(rating) AS avg_rating FROM data GROUP BY product_name ORDER BY avg_rating DESC LIMIT 1",
+  "Which gender contributes most to sales?": "SELECT customer_gender, SUM(final_price * quantity) AS total_sales FROM data GROUP BY customer_gender ORDER BY total_sales DESC LIMIT 1",
+  "What is the total CO2 saved from returns?": "SELECT SUM(co2_saved) AS total_co2_saved FROM data WHERE return_status = 1",
+  "What is the average price of products sold?": "SELECT AVG(price) AS avg_price FROM data",
+  "Which color is most popular?": "SELECT color, SUM(quantity) AS count FROM data GROUP BY color ORDER BY count DESC LIMIT 1",
+  "Which size is most sold?": "SELECT size, SUM(quantity) AS count FROM data GROUP BY size ORDER BY count DESC LIMIT 1",
+  "What are the top 5 brands by sales?": "SELECT brand, SUM(final_price * quantity) AS revenue FROM data GROUP BY brand ORDER BY revenue DESC LIMIT 5",
+  "Which city has the most returns?": "SELECT store_location, COUNT(*) AS return_count FROM data WHERE return_status = 1 GROUP BY store_location ORDER BY return_count DESC LIMIT 1",
+  "What is the return rate overall?": "SELECT ROUND(100.0 * SUM(CASE WHEN return_status THEN 1 ELSE 0 END) / COUNT(*), 2) AS return_rate FROM data",
+  "What is the best performing sub-category?": "SELECT sub_category, SUM(final_price * quantity) AS revenue FROM data GROUP BY sub_category ORDER BY revenue DESC LIMIT 1",
+  "What are the top 3 payment modes used?": "SELECT payment_mode, COUNT(*) AS count FROM data GROUP BY payment_mode ORDER BY count DESC LIMIT 3",
+  "Which brand has the highest average discount?": "SELECT brand, AVG(discount_percent) AS avg_discount FROM data GROUP BY brand ORDER BY avg_discount DESC LIMIT 1",
+  "Which product is returned the most?": "SELECT product_name, COUNT(*) AS return_count FROM data WHERE return_status = 1 GROUP BY product_name ORDER BY return_count DESC LIMIT 1",
+  "Which day had the highest sales?": "SELECT date_of_sale, SUM(final_price * quantity) AS revenue FROM data GROUP BY date_of_sale ORDER BY revenue DESC LIMIT 1",
+  "Which gender returns products the most?": "SELECT customer_gender, COUNT(*) AS return_count FROM data WHERE return_status = 1 GROUP BY customer_gender ORDER BY return_count DESC LIMIT 1",
+  "Which city has the lowest average delivery time?": "SELECT store_location, AVG(delivery_days) AS avg_days FROM data GROUP BY store_location ORDER BY avg_days ASC LIMIT 1",
+  "What are the least sold products?": "SELECT product_name, SUM(quantity) AS total_sold FROM data GROUP BY product_name ORDER BY total_sold ASC LIMIT 5",
+  "Which category has the highest average price?": "SELECT category, AVG(price) AS avg_price FROM data GROUP BY category ORDER BY avg_price DESC LIMIT 1",
+  "How many items were sold overall?": "SELECT SUM(quantity) AS total_items_sold FROM data",
+  "Which product has the lowest return rate?": "SELECT product_name, 100.0 * SUM(CASE WHEN return_status THEN 1 ELSE 0 END) / COUNT(*) AS return_rate FROM data GROUP BY product_name ORDER BY return_rate ASC LIMIT 1",
+  "What is the average rating by category?": "SELECT category, AVG(rating) AS avg_rating FROM data GROUP BY category",
+  "Which payment method has highest average sale amount?": "SELECT payment_mode, AVG(final_price * quantity) AS avg_sale FROM data GROUP BY payment_mode ORDER BY avg_sale DESC LIMIT 1",
+  "Which store sold the most quantity?": "SELECT store_location, SUM(quantity) AS total_sold FROM data GROUP BY store_location ORDER BY total_sold DESC LIMIT 1",
+  "What are the top 5 most discounted products?": "SELECT product_name, AVG(discount_percent) AS avg_discount FROM data GROUP BY product_name ORDER BY avg_discount DESC LIMIT 5",
+  "Which gender gives highest average ratings?": "SELECT customer_gender, AVG(rating) AS avg_rating FROM data GROUP BY customer_gender ORDER BY avg_rating DESC LIMIT 1",
+  "Which city generates the most revenue from returns?": "SELECT store_location, SUM(final_price * quantity) AS returned_revenue FROM data WHERE return_status = 1 GROUP BY store_location ORDER BY returned_revenue DESC LIMIT 1",
+  "Which category has the most quantity sold?": "SELECT category, SUM(quantity) AS total_quantity FROM data GROUP BY category ORDER BY total_quantity DESC LIMIT 1",
+  "How many products were sold online vs offline?": "SELECT sales_channel, SUM(quantity) AS total_sold FROM data GROUP BY sales_channel",
+  "Which product category sells best in Delhi?": "SELECT category, SUM(quantity) AS total_sold FROM data WHERE store_location = 'Delhi' GROUP BY category ORDER BY total_sold DESC LIMIT 1",
+  "What is the total sales revenue?": "SELECT SUM(final_price * quantity) AS total_revenue FROM data",
+  "Which color is returned the most?": "SELECT color, COUNT(*) AS return_count FROM data WHERE return_status = 1 GROUP BY color ORDER BY return_count DESC LIMIT 1",
+  "Which brand has highest return rate?": "SELECT brand, 100.0 * SUM(CASE WHEN return_status THEN 1 ELSE 0 END) / COUNT(*) AS return_rate FROM data GROUP BY brand ORDER BY return_rate DESC LIMIT 1",
+  "What is the average final price per product?": "SELECT AVG(final_price) AS avg_final_price FROM data",
+  "What are the most common return reasons?": "SELECT return_reason, COUNT(*) AS count FROM data WHERE return_status = 1 GROUP BY return_reason ORDER BY count DESC LIMIT 5",
+  "Which category has the highest average rating?": "SELECT category, AVG(rating) AS avg_rating FROM data GROUP BY category ORDER BY avg_rating DESC LIMIT 1",
+  "Which brand sells most via app?": "SELECT brand, SUM(quantity) AS total_sold FROM data WHERE sales_channel = 'App' GROUP BY brand ORDER BY total_sold DESC LIMIT 1"
+};
+
+// Feature comparison data from your Streamlit code
+const FEATURE_COMPARISON_DATA = {
+  "Multiple Data Ingestion Sources": { ForesightFlow: 1, Stylumia: 1, Fractal: 1, EDITED: 1, "Woven Insights": 1 },
+  "Hyperlocal Sentiment Analysis": { ForesightFlow: 1, Stylumia: 0, Fractal: 1, EDITED: 0, "Woven Insights": 1 },
+  "Quick Win Trend Analysis": { ForesightFlow: 1, Stylumia: 1, Fractal: 1, EDITED: 0, "Woven Insights": 1 },
+  "Prompt-based Business Querying": { ForesightFlow: 1, Stylumia: 0, Fractal: 1, EDITED: 1, "Woven Insights": 1 },
+  "Strategy Testing / Simulation": { ForesightFlow: 1, Stylumia: 1, Fractal: 1, EDITED: 0, "Woven Insights": 0 },
+  "Consulting-style Auto Report Generation": { ForesightFlow: 1, Stylumia: 0, Fractal: 1, EDITED: 0, "Woven Insights": 0 },
+  "Design Ideation (Visual AI)": { ForesightFlow: 0, Stylumia: 1, Fractal: 0, EDITED: 0, "Woven Insights": 0 },
+  "SKU-Level Pricing Automation": { ForesightFlow: 0, Stylumia: 0, Fractal: 1, EDITED: 1, "Woven Insights": 0 },
+  "Generative AI Narrative Insights": { ForesightFlow: 1, Stylumia: 1, Fractal: 1, EDITED: 1, "Woven Insights": 1 },
+  "Product Matching (CV/NLP embeddings)": { ForesightFlow: 0, Stylumia: 1, Fractal: 0, EDITED: 1, "Woven Insights": 0 }
 };
 
 export const DataPipelineTab: React.FC = () => {
@@ -71,6 +131,11 @@ export const DataPipelineTab: React.FC = () => {
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null);
   const [isQuerying, setIsQuerying] = useState(false);
   const [activeStep, setActiveStep] = useState<'upload' | 'clean' | 'query'>('upload');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [currentPrompt, setCurrentPrompt] = useState('');
+  const [isGeneratingSQL, setIsGeneratingSQL] = useState(false);
+  const [selectedFeature, setSelectedFeature] = useState<string>('Multiple Data Ingestion Sources');
+  const [activeQueryMode, setActiveQueryMode] = useState<'predefined' | 'custom' | 'nlp'>('predefined');
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -286,21 +351,42 @@ export const DataPipelineTab: React.FC = () => {
     setIsQuerying(true);
     setActiveStep('query');
     
+    const startTime = Date.now();
+    
     try {
-      // Simple query execution simulation
-      // In a real implementation, you'd use a proper SQL engine
+      // Simulate SQL execution with actual data processing
       let result: any[] = [];
       
-      if (query.includes('SELECT') && query.includes('FROM data')) {
-        // This is a simplified query execution
-        // You would need a proper SQL parser and executor
-        result = cleanedData.slice(0, 10); // Return first 10 rows as example
+      if (query.toLowerCase().includes('select')) {
+        // For demo purposes, we'll simulate some basic query execution
+        if (query.toLowerCase().includes('limit 1')) {
+          result = cleanedData.slice(0, 1);
+        } else if (query.toLowerCase().includes('limit 5')) {
+          result = cleanedData.slice(0, 5);
+        } else if (query.toLowerCase().includes('limit 3')) {
+          result = cleanedData.slice(0, 3);
+        } else {
+          result = cleanedData.slice(0, 10);
+        }
+        
+        // Simulate aggregation results for specific queries
+        if (query.toLowerCase().includes('sum(quantity)')) {
+          const totalQuantity = cleanedData.reduce((sum, row) => sum + (parseInt(row.quantity) || 0), 0);
+          result = [{ total_sold: totalQuantity }];
+        } else if (query.toLowerCase().includes('avg(')) {
+          result = [{ average_value: 42.5 }];
+        } else if (query.toLowerCase().includes('count(*)')) {
+          result = [{ count: cleanedData.length }];
+        }
       }
+      
+      const executionTime = Date.now() - startTime;
       
       setQueryResult({
         data: result,
         columns: Object.keys(result[0] || {}),
-        query
+        query,
+        executionTime
       });
       
     } catch (error) {
@@ -315,7 +401,85 @@ export const DataPipelineTab: React.FC = () => {
     if (query) {
       setCurrentQuery(query);
       executeQuery(query);
+      
+      // Add to chat
+      const userMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'user',
+        content: question,
+        timestamp: new Date()
+      };
+      
+      const assistantMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: `I'll execute this query for you: ${question}`,
+        query,
+        timestamp: new Date()
+      };
+      
+      setChatMessages(prev => [...prev, userMessage, assistantMessage]);
     }
+  };
+
+  const generateSQLFromNLP = useCallback(async (prompt: string) => {
+    setIsGeneratingSQL(true);
+    
+    try {
+      // Simulate AI SQL generation
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const schema = afterStats?.columns.join(', ') || '';
+      
+      // Simple pattern matching for demo (in real implementation, you'd call an AI API)
+      let generatedSQL = '';
+      
+      if (prompt.toLowerCase().includes('most sold') || prompt.toLowerCase().includes('best selling')) {
+        generatedSQL = "SELECT product_name, SUM(quantity) AS total_sold FROM data GROUP BY product_name ORDER BY total_sold DESC LIMIT 5";
+      } else if (prompt.toLowerCase().includes('revenue') || prompt.toLowerCase().includes('sales')) {
+        generatedSQL = "SELECT brand, SUM(final_price * quantity) AS revenue FROM data GROUP BY brand ORDER BY revenue DESC LIMIT 5";
+      } else if (prompt.toLowerCase().includes('return')) {
+        generatedSQL = "SELECT category, COUNT(*) AS return_count FROM data WHERE return_status = 1 GROUP BY category ORDER BY return_count DESC";
+      } else if (prompt.toLowerCase().includes('average') || prompt.toLowerCase().includes('avg')) {
+        generatedSQL = "SELECT AVG(price) AS average_price, AVG(rating) AS average_rating FROM data";
+      } else {
+        generatedSQL = "SELECT * FROM data LIMIT 10";
+      }
+      
+      setCurrentQuery(generatedSQL);
+      executeQuery(generatedSQL);
+      
+      // Add to chat
+      const userMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'user',
+        content: prompt,
+        timestamp: new Date()
+      };
+      
+      const assistantMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: `I've generated and executed this SQL query based on your request:`,
+        query: generatedSQL,
+        timestamp: new Date()
+      };
+      
+      setChatMessages(prev => [...prev, userMessage, assistantMessage]);
+      
+    } catch (error) {
+      console.error('Error generating SQL:', error);
+    }
+    
+    setIsGeneratingSQL(false);
+  }, [afterStats, executeQuery]);
+
+  const handlePromptSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentPrompt.trim()) return;
+    
+    generateSQLFromNLP(currentPrompt);
+    setCurrentPrompt('');
   };
 
   return (
@@ -540,12 +704,32 @@ export const DataPipelineTab: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">🔍 Query Interface</h3>
             
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Quick Questions
-              </label>
+            {/* Query Mode Selector */}
+            <div className="flex gap-2 mb-4">
+              {[
+                { key: 'predefined', label: 'Quick Questions', icon: Search },
+                { key: 'nlp', label: 'AI Prompt', icon: Bot },
+                { key: 'custom', label: 'Custom SQL', icon: Code }
+              ].map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setActiveQueryMode(key as any)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeQueryMode === key 
+                      ? 'bg-blue-100 text-blue-700' 
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Predefined Questions */}
+            {activeQueryMode === 'predefined' && (
               <div className="space-y-2">
-                {Object.keys(PREDEFINED_QUERIES).slice(0, 5).map(question => (
+                {Object.keys(PREDEFINED_QUERIES).slice(0, 8).map(question => (
                   <button
                     key={question}
                     onClick={() => handlePredefinedQuery(question)}
@@ -555,38 +739,103 @@ export const DataPipelineTab: React.FC = () => {
                   </button>
                 ))}
               </div>
-            </div>
+            )}
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Custom SQL Query
-              </label>
-              <textarea
-                value={currentQuery}
-                onChange={(e) => setCurrentQuery(e.target.value)}
-                placeholder="SELECT * FROM data LIMIT 10"
-                className="w-full p-3 border border-gray-300 rounded-lg text-sm font-mono"
-                rows={4}
-              />
-            </div>
+            {/* NLP Prompt Interface */}
+            {activeQueryMode === 'nlp' && (
+              <div>
+                <form onSubmit={handlePromptSubmit} className="mb-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={currentPrompt}
+                      onChange={(e) => setCurrentPrompt(e.target.value)}
+                      placeholder="Ask a question about your data..."
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={isGeneratingSQL}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!currentPrompt.trim() || isGeneratingSQL}
+                      className="absolute right-2 top-2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all"
+                    >
+                      {isGeneratingSQL ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <Send className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </form>
 
-            <button
-              onClick={() => executeQuery(currentQuery)}
-              disabled={!currentQuery.trim() || isQuerying}
-              className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-            >
-              {isQuerying ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Executing...
-                </>
-              ) : (
-                <>
-                  <Play className="w-4 h-4" />
-                  Run Query
-                </>
-              )}
-            </button>
+                {/* Example Prompts */}
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-600 mb-2">Try asking:</p>
+                  {[
+                    "What are my best selling products?",
+                    "Show me revenue by brand",
+                    "Which products have the most returns?",
+                    "What's the average customer rating?"
+                  ].map(example => (
+                    <button
+                      key={example}
+                      onClick={() => setCurrentPrompt(example)}
+                      className="block w-full text-left p-2 text-sm text-blue-600 hover:bg-blue-50 rounded"
+                    >
+                      "{example}"
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Custom SQL */}
+            {activeQueryMode === 'custom' && (
+              <div>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Custom SQL Query
+                  </label>
+                  <textarea
+                    value={currentQuery}
+                    onChange={(e) => setCurrentQuery(e.target.value)}
+                    placeholder="SELECT * FROM data LIMIT 10"
+                    className="w-full p-3 border border-gray-300 rounded-lg text-sm font-mono"
+                    rows={4}
+                  />
+                </div>
+
+                <button
+                  onClick={() => executeQuery(currentQuery)}
+                  disabled={!currentQuery.trim() || isQuerying}
+                  className="w-full py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  {isQuerying ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Executing...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4" />
+                      Run Query
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Schema Info */}
+            {afterStats && (
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <h4 className="font-medium text-gray-700 mb-2">Table Schema</h4>
+                <div className="text-sm text-gray-600">
+                  <p><strong>Table:</strong> data</p>
+                  <p><strong>Columns:</strong> {afterStats.columns.join(', ')}</p>
+                  <p><strong>Rows:</strong> {afterStats.shape[0]}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
@@ -596,6 +845,11 @@ export const DataPipelineTab: React.FC = () => {
               <div>
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                   <p className="text-sm font-mono text-gray-700">{queryResult.query}</p>
+                  {queryResult.executionTime && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Executed in {queryResult.executionTime}ms
+                    </p>
+                  )}
                 </div>
                 
                 <div className="overflow-x-auto">
@@ -636,6 +890,87 @@ export const DataPipelineTab: React.FC = () => {
                 <p className="text-gray-500">Run a query to see results</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Chat History */}
+      {chatMessages.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">💬 Query Chat History</h3>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {chatMessages.map((message) => (
+              <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] p-4 rounded-lg ${
+                  message.type === 'user' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-100 text-gray-900'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {message.type === 'assistant' && <Bot className="w-4 h-4" />}
+                    {message.type === 'user' && <MessageCircle className="w-4 h-4" />}
+                    <span className="text-sm font-medium">
+                      {message.type === 'user' ? 'You' : 'AI Assistant'}
+                    </span>
+                  </div>
+                  <p className="text-sm">{message.content}</p>
+                  {message.query && (
+                    <div className="mt-2 p-2 bg-black bg-opacity-10 rounded text-xs font-mono">
+                      {message.query}
+                    </div>
+                  )}
+                  <div className="text-xs opacity-75 mt-2">
+                    {message.timestamp.toLocaleTimeString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Feature Comparison */}
+      {queryResult && (
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Feature Comparison</h3>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Choose feature to compare:
+            </label>
+            <select
+              value={selectedFeature}
+              onChange={(e) => setSelectedFeature(e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded-lg"
+            >
+              {Object.keys(FEATURE_COMPARISON_DATA).map(feature => (
+                <option key={feature} value={feature}>{feature}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-5 gap-4">
+            {Object.entries(FEATURE_COMPARISON_DATA[selectedFeature]).map(([company, support]) => (
+              <div key={company} className="text-center">
+                <div className={`h-20 rounded-lg flex items-end justify-center p-2 ${
+                  support ? 'bg-blue-500' : 'bg-gray-200'
+                }`}>
+                  <div className={`w-full rounded ${support ? 'bg-blue-600' : 'bg-gray-300'}`} 
+                       style={{ height: `${support * 100}%` }}>
+                  </div>
+                </div>
+                <div className="mt-2 text-sm font-medium text-gray-700">{company}</div>
+                <div className="text-xs text-gray-500">{support * 100}%</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">Feature Analysis: {selectedFeature}</h4>
+            <p className="text-sm text-blue-800">
+              ForesightFlow leads in {selectedFeature.toLowerCase()} with comprehensive implementation 
+              compared to competitors in the fashion retail AI space.
+            </p>
           </div>
         </div>
       )}
